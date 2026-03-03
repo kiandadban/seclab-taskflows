@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: GitHub, Inc.
+# SPDX-License-Identifier: MIT
+
+# Demo: base container shell.
+# Inspects a target binary using tools available in seclab-shell-base.
+# Set CONTAINER_WORKSPACE to a directory containing the binary before running.
+# Example:
+#   CONTAINER_WORKSPACE=/tmp/demo python -m seclab_taskflow_agent \
+#     -t seclab_taskflows.taskflows.container_shell.demo_base
+
+seclab-taskflow-agent:
+  filetype: taskflow
+  version: "1.0"
+
+globals:
+  target: hello
+
+taskflow:
+  - task:
+      must_complete: true
+      headless: true
+      agents:
+        - seclab_taskflow_agent.personalities.assistant
+      toolboxes:
+        - seclab_taskflows.toolboxes.container_shell_base
+      env:
+        CONTAINER_WORKSPACE: "{{ env('CONTAINER_WORKSPACE') }}"
+      user_prompt: |
+        A binary named {{ globals.target }} is available at /workspace/{{ globals.target }}.
+
+        Run each of the following steps in order and report the findings:
+
+        1. Confirm the file exists: `ls -lh /workspace/{{ globals.target }}`
+        2. Identify the file type: `file /workspace/{{ globals.target }}`
+        3. Extract printable strings (minimum length 8): `strings -n 8 /workspace/{{ globals.target }}`
+        4. Show the ELF section headers: `readelf -S /workspace/{{ globals.target }}`
+        5. List exported symbols: `nm -D /workspace/{{ globals.target }} 2>/dev/null || nm /workspace/{{ globals.target }}`
+        6. Hex dump the first 64 bytes: `xxd /workspace/{{ globals.target }} | head -4`
+
+        Summarise what you learned about the binary from these steps.
