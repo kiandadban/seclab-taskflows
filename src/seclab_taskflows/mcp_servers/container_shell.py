@@ -27,6 +27,8 @@ CONTAINER_TIMEOUT = int(os.environ.get("CONTAINER_TIMEOUT", "30"))
 
 def _start_container() -> str:
     """Start the Docker container and return its name."""
+    if CONTAINER_WORKSPACE and ":" in CONTAINER_WORKSPACE:
+        raise RuntimeError(f"CONTAINER_WORKSPACE must not contain a colon: {CONTAINER_WORKSPACE!r}")
     name = f"seclab-shell-{uuid.uuid4().hex[:8]}"
     cmd = ["docker", "run", "-d", "--rm", "--name", name]
     if CONTAINER_WORKSPACE:

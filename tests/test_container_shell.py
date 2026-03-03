@@ -70,6 +70,14 @@ class TestStartContainer:
             with pytest.raises(RuntimeError, match="docker run failed"):
                 cs_mod._start_container()
 
+    def test_start_container_rejects_colon_in_workspace(self):
+        with (
+            patch.object(cs_mod, "CONTAINER_IMAGE", "test-image:latest"),
+            patch.object(cs_mod, "CONTAINER_WORKSPACE", "/host/path:ro"),
+        ):
+            with pytest.raises(RuntimeError, match="CONTAINER_WORKSPACE must not contain a colon"):
+                cs_mod._start_container()
+
 
 # ---------------------------------------------------------------------------
 # shell_exec tests
