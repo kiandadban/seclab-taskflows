@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: GitHub, Inc.
+# SPDX-License-Identifier: MIT
+
 import atexit
 import logging
 import os
@@ -18,15 +21,19 @@ logging.basicConfig(
 
 mcp = FastMCP("ContainerShell")
 
-_container_id: str | None = None
+_container_name: str | None = None
 
 CONTAINER_IMAGE = os.environ.get("CONTAINER_IMAGE", "")
 CONTAINER_WORKSPACE = os.environ.get("CONTAINER_WORKSPACE", "")
 CONTAINER_TIMEOUT = int(os.environ.get("CONTAINER_TIMEOUT", "30"))
 
+_DEFAULT_WORKDIR = "/workspace"
+
 
 def _start_container() -> str:
     """Start the Docker container and return its name."""
+    if not CONTAINER_IMAGE:
+        raise RuntimeError("CONTAINER_IMAGE is not set — cannot start container")
     if CONTAINER_WORKSPACE and ":" in CONTAINER_WORKSPACE:
         raise RuntimeError(f"CONTAINER_WORKSPACE must not contain a colon: {CONTAINER_WORKSPACE!r}")
     name = f"seclab-shell-{uuid.uuid4().hex[:8]}"
@@ -35,7 +42,7 @@ def _start_container() -> str:
         cmd += ["-v", f"{CONTAINER_WORKSPACE}:/workspace"]
     cmd += [CONTAINER_IMAGE, "tail", "-f", "/dev/null"]
     logging.debug(f"Starting container: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     if result.returncode != 0:
         raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
     logging.debug(f"Container started: {name}")
@@ -44,22 +51,25 @@ def _start_container() -> str:
 
 def _stop_container() -> None:
     """Stop the running container."""
-    global _container_id
-    if _container_id is None:
+    global _container_name
+    if _container_name is None:
         return
-    logging.debug(f"Stopping container: {_container_id}")
-    subprocess.run(
-        ["docker", "stop", "--time", "5", _container_id],
+    logging.debug(f"Stopping container: {_container_name}")
+    result = subprocess.run(
+        ["docker", "stop", "--time", "5", _container_name],
         capture_output=True,
         text=True,
     )
-    _container_id = None
+    if result.returncode != 0:
+        logging.warning(
+            "docker stop failed for container %s: %s",
+            _container_name,
+            result.stderr.strip(),
+        )
+    _container_name = None
 
 
 atexit.register(_stop_container)
-
-
-_DEFAULT_WORKDIR = "/workspace" if CONTAINER_WORKSPACE else "/"
 
 
 @mcp.tool()
@@ -69,14 +79,14 @@ def shell_exec(
     workdir: Annotated[str, Field(description="Working directory inside the container")] = _DEFAULT_WORKDIR,
 ) -> str:
     """Execute a shell command inside the managed Docker container."""
-    global _container_id
-    if _container_id is None:
+    global _container_name
+    if _container_name is None:
         try:
-            _container_id = _start_container()
+            _container_name = _start_container()
         except RuntimeError as e:
             return f"Failed to start container: {e}"
 
-    cmd = ["docker", "exec", "-w", workdir, _container_id, "bash", "-c", command]
+    cmd = ["docker", "exec", "-w", workdir, _container_name, "bash", "-c", command]
     logging.debug(f"Executing: {' '.join(cmd)}")
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)

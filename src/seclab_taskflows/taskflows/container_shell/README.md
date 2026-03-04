@@ -50,7 +50,7 @@ Images only need to be rebuilt when a Dockerfile changes.
 you do not need to pass files into the container.
 
 `CONTAINER_TIMEOUT` — default command timeout in seconds. Defaults to 30 (base
-and network) or 60 (malware analysis).
+and network) or 60 (malware analysis and sast).
 
 `LOG_DIR` — where to write `container_shell.log`.
 

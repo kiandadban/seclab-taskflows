@@ -6,7 +6,7 @@
 # Must be run from the root of the seclab-taskflows repository.
 # Images must be rebuilt whenever a Dockerfile changes.
 #
-# Usage: ./scripts/build_container_images.sh [base|malware|network|all]
+# Usage: ./scripts/build_container_images.sh [base|malware|network|sast|all]
 #   default: all
 
 set -euo pipefail

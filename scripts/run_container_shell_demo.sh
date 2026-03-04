@@ -75,8 +75,9 @@ case "$demo" in
         ;;
     sast)
         target="${3:-.}"
-        if [ ! -d "$workspace" ] && [ ! -f "${workspace}/${target}" ]; then
-            echo "No source found at ${workspace}/${target}" >&2
+        target_path="${workspace}/${target}"
+        if [ "$target" != "." ] && [ ! -d "$target_path" ] && [ ! -f "$target_path" ]; then
+            echo "No source found at ${target_path}" >&2
             echo "Provide a source directory or file in workspace_dir." >&2
             exit 1
         fi

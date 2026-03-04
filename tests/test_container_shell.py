@@ -1,4 +1,6 @@
-import importlib
+# SPDX-FileCopyrightText: GitHub, Inc.
+# SPDX-License-Identifier: MIT
+
 import subprocess
 from unittest.mock import MagicMock, patch
 
@@ -22,7 +24,7 @@ def _make_proc(returncode=0, stdout="", stderr=""):
 
 def _reset_container():
     """Reset global container state between tests."""
-    cs_mod._container_id = None
+    cs_mod._container_name = None
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +80,14 @@ class TestStartContainer:
             with pytest.raises(RuntimeError, match="CONTAINER_WORKSPACE must not contain a colon"):
                 cs_mod._start_container()
 
+    def test_start_container_rejects_empty_image(self):
+        with (
+            patch.object(cs_mod, "CONTAINER_IMAGE", ""),
+            patch.object(cs_mod, "CONTAINER_WORKSPACE", ""),
+        ):
+            with pytest.raises(RuntimeError, match="CONTAINER_IMAGE is not set"):
+                cs_mod._start_container()
+
 
 # ---------------------------------------------------------------------------
 # shell_exec tests
@@ -95,13 +105,13 @@ class TestShellExec:
             patch.object(cs_mod, "CONTAINER_WORKSPACE", ""),
             patch("subprocess.run", side_effect=[start_proc, exec_proc]),
         ):
-            assert cs_mod._container_id is None
+            assert cs_mod._container_name is None
             result = cs_mod.shell_exec.fn(command="echo hello")
-            assert cs_mod._container_id is not None
+            assert cs_mod._container_name is not None
             assert "hello" in result
 
     def test_shell_exec_runs_command(self):
-        cs_mod._container_id = "seclab-shell-testtest"
+        cs_mod._container_name = "seclab-shell-testtest"
         exec_proc = _make_proc(returncode=0, stdout="output\n")
         with patch("subprocess.run", return_value=exec_proc) as mock_run:
             result = cs_mod.shell_exec.fn(command="echo output", workdir="/workspace")
@@ -115,14 +125,14 @@ class TestShellExec:
             assert "output" in result
 
     def test_shell_exec_includes_exit_code(self):
-        cs_mod._container_id = "seclab-shell-testtest"
+        cs_mod._container_name = "seclab-shell-testtest"
         exec_proc = _make_proc(returncode=0, stdout="done\n")
         with patch("subprocess.run", return_value=exec_proc):
             result = cs_mod.shell_exec.fn(command="true")
             assert "[exit code: 0]" in result
 
     def test_shell_exec_nonzero_exit(self):
-        cs_mod._container_id = "seclab-shell-testtest"
+        cs_mod._container_name = "seclab-shell-testtest"
         exec_proc = _make_proc(returncode=1, stdout="", stderr="error\n")
         with patch("subprocess.run", return_value=exec_proc):
             result = cs_mod.shell_exec.fn(command="false")
@@ -130,7 +140,7 @@ class TestShellExec:
             assert "error" in result
 
     def test_shell_exec_timeout(self):
-        cs_mod._container_id = "seclab-shell-testtest"
+        cs_mod._container_name = "seclab-shell-testtest"
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="docker", timeout=5)):
             result = cs_mod.shell_exec.fn(command="sleep 999", timeout=5)
             assert "timeout" in result
@@ -144,7 +154,7 @@ class TestShellExec:
         ):
             result = cs_mod.shell_exec.fn(command="echo hi")
             assert "Failed to start container" in result
-            assert cs_mod._container_id is None
+            assert cs_mod._container_name is None
 
 
 # ---------------------------------------------------------------------------
@@ -156,20 +166,26 @@ class TestStopContainer:
         _reset_container()
 
     def test_stop_container_called_on_atexit(self):
-        cs_mod._container_id = "seclab-shell-tostop"
+        cs_mod._container_name = "seclab-shell-tostop"
         with patch("subprocess.run", return_value=_make_proc(returncode=0)) as mock_run:
             cs_mod._stop_container()
             cmd = mock_run.call_args[0][0]
             assert "docker" in cmd
             assert "stop" in cmd
             assert "seclab-shell-tostop" in cmd
-            assert cs_mod._container_id is None
+            assert cs_mod._container_name is None
 
     def test_stop_container_no_op_when_none(self):
-        cs_mod._container_id = None
+        cs_mod._container_name = None
         with patch("subprocess.run") as mock_run:
             cs_mod._stop_container()
             mock_run.assert_not_called()
+
+    def test_stop_container_clears_name_on_failure(self):
+        cs_mod._container_name = "seclab-shell-tostop"
+        with patch("subprocess.run", return_value=_make_proc(returncode=1, stderr="not found")):
+            cs_mod._stop_container()
+            assert cs_mod._container_name is None
 
 
 # ---------------------------------------------------------------------------
