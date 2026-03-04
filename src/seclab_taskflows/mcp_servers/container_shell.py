@@ -33,9 +33,11 @@ _DEFAULT_WORKDIR = "/workspace"
 def _start_container() -> str:
     """Start the Docker container and return its name."""
     if not CONTAINER_IMAGE:
-        raise RuntimeError("CONTAINER_IMAGE is not set — cannot start container")
+        msg = "CONTAINER_IMAGE is not set — cannot start container"
+        raise RuntimeError(msg)
     if CONTAINER_WORKSPACE and ":" in CONTAINER_WORKSPACE:
-        raise RuntimeError(f"CONTAINER_WORKSPACE must not contain a colon: {CONTAINER_WORKSPACE!r}")
+        msg = f"CONTAINER_WORKSPACE must not contain a colon: {CONTAINER_WORKSPACE!r}"
+        raise RuntimeError(msg)
     name = f"seclab-shell-{uuid.uuid4().hex[:8]}"
     cmd = ["docker", "run", "-d", "--rm", "--name", name]
     if CONTAINER_WORKSPACE:
@@ -44,7 +46,8 @@ def _start_container() -> str:
     logging.debug(f"Starting container: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     if result.returncode != 0:
-        raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
+        msg = f"docker run failed: {result.stderr.strip()}"
+        raise RuntimeError(msg)
     logging.debug(f"Container started: {name}")
     return name
 
