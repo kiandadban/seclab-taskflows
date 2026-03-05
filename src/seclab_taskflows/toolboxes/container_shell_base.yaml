@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: GitHub, Inc.
+# SPDX-License-Identifier: MIT
+
+seclab-taskflow-agent:
+  filetype: toolbox
+  version: "1.0"
+
+server_params:
+  kind: stdio
+  command: python
+  args: ["-m", "seclab_taskflows.mcp_servers.container_shell"]
+  env:
+    CONTAINER_IMAGE: "seclab-shell-base:latest"
+    CONTAINER_WORKSPACE: "{{ env('CONTAINER_WORKSPACE', required=False) }}"
+    CONTAINER_TIMEOUT: "{{ env('CONTAINER_TIMEOUT', '30') }}"
+    LOG_DIR: "{{ env('LOG_DIR') }}"
+
+confirm:
+  - shell_exec
+
+server_prompt: |
+  ## Container Shell (base)
+  You have access to an isolated Docker container. Use `shell_exec` to run commands.
+  The working directory is /workspace (mapped from the host workspace if configured).
+
+  Available tools in this container:
+  - bash, coreutils (ls, cat, grep, find, sed, awk, sort, uniq, wc, ...)
+  - file         — identify file type by magic bytes
+  - strings      — extract printable strings from binary files
+  - objdump      — disassemble and dump object/binary files
+  - readelf      — display ELF binary structure
+  - nm           — list symbols from object files
+  - xxd / hexdump — hex inspection
+  - python3      — scripting
+  - curl / wget  — HTTP requests
+  - git          — version control
+
+  All commands run inside the container. Output includes stdout, stderr, and exit code.

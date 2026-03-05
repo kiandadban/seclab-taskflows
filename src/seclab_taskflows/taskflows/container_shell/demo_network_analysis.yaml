@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: GitHub, Inc.
+# SPDX-License-Identifier: MIT
+
+# Demo: network analysis container shell.
+# Analyses a pcap file placed in CONTAINER_WORKSPACE.
+# Example:
+#   CONTAINER_WORKSPACE=/tmp/captures python -m seclab_taskflow_agent \
+#     -t seclab_taskflows.taskflows.container_shell.demo_network_analysis \
+#     -g capture=sample.pcap
+
+seclab-taskflow-agent:
+  filetype: taskflow
+  version: "1.0"
+
+globals:
+  capture: sample.pcap
+
+taskflow:
+  - task:
+      must_complete: true
+      headless: true
+      agents:
+        - seclab_taskflow_agent.personalities.assistant
+      toolboxes:
+        - seclab_taskflows.toolboxes.container_shell_network_analysis
+      env:
+        CONTAINER_WORKSPACE: "{{ env('CONTAINER_WORKSPACE') }}"
+      user_prompt: |
+        Analyse the packet capture at /workspace/{{ globals.capture }}.
+
+        Work through each step below and record findings:
+
+        1. Confirm the file and get a summary:
+           `tshark -r /workspace/{{ globals.capture }} -q -z io,phs`
+
+        2. List all unique conversations (IP pairs):
+           `tshark -r /workspace/{{ globals.capture }} -q -z conv,ip`
+
+        3. List all DNS queries:
+           `tshark -r /workspace/{{ globals.capture }} -Y dns -T fields -e dns.qry.name | sort -u`
+
+        4. List all HTTP requests (method, host, URI):
+           `tshark -r /workspace/{{ globals.capture }} -Y http.request -T fields \
+             -e http.request.method -e http.host -e http.request.uri | sort -u`
+
+        5. Show any cleartext credentials (basic auth, form data):
+           `tshark -r /workspace/{{ globals.capture }} -Y "http contains \"password\" or http contains \"passwd\"" \
+             -T fields -e http.file_data 2>/dev/null | head -20`
+
+        6. Extract TLS SNI values (reveals contacted hostnames even in encrypted traffic):
+           `tshark -r /workspace/{{ globals.capture }} -Y tls.handshake.extensions_server_name \
+             -T fields -e tls.handshake.extensions_server_name | sort -u`
+
+        7. Check for large outbound data transfers (potential exfiltration):
+           `tshark -r /workspace/{{ globals.capture }} -q -z conv,tcp | sort -k 3 -n -r | head -20`
+
+        Based on the above, report:
+        - What hosts and services were contacted?
+        - Were any credentials or sensitive data visible in cleartext?
+        - Are there signs of data exfiltration, C2 beaconing, or other suspicious patterns?
+        - Any notable DNS or TLS observations?
+
+        Write a concise analysis report.
