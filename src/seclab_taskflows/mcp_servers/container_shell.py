@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: MIT
 
 import atexit
+import hashlib
+import json
 import logging
 import os
-import re
 import subprocess
 import uuid
 from typing import Annotated
@@ -28,24 +29,58 @@ CONTAINER_IMAGE = os.environ.get("CONTAINER_IMAGE", "")
 CONTAINER_WORKSPACE = os.environ.get("CONTAINER_WORKSPACE", "")
 CONTAINER_TIMEOUT = int(os.environ.get("CONTAINER_TIMEOUT", "30"))
 CONTAINER_PERSIST = os.environ.get("CONTAINER_PERSIST", "").lower() in ("1", "true", "yes")
+CONTAINER_PERSIST_KEY = os.environ.get("CONTAINER_PERSIST_KEY", "")
 
 _DEFAULT_WORKDIR = "/workspace"
+_DOCKER_TIMEOUT = 30
 
 
 def _persistent_name() -> str:
-    """Derive a deterministic container name from the image for reuse across tasks."""
-    slug = re.sub(r"[^a-zA-Z0-9]", "-", CONTAINER_IMAGE).strip("-")[:40]
-    return f"seclab-persist-{slug}"
+    """Derive a deterministic container name from the image for reuse across tasks.
+
+    Incorporates a hash of the full image reference (and optional
+    CONTAINER_PERSIST_KEY) to avoid collisions between long image names that
+    share a common prefix, or between independent runs of the same image.
+    """
+    key_material = CONTAINER_IMAGE
+    if CONTAINER_PERSIST_KEY:
+        key_material += f":{CONTAINER_PERSIST_KEY}"
+    digest = hashlib.sha256(key_material.encode()).hexdigest()[:12]
+    return f"seclab-persist-{digest}"
 
 
 def _is_running(name: str) -> bool:
     """Check if a container with the given name is already running."""
-    result = subprocess.run(
-        ["docker", "inspect", "-f", "{{.State.Running}}", name],
-        capture_output=True,
-        text=True,
-    )
-    return result.returncode == 0 and result.stdout.strip() == "true"
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", "--format", "json", name],
+            capture_output=True,
+            text=True,
+            timeout=_DOCKER_TIMEOUT,
+        )
+        if result.returncode != 0:
+            return False
+        data = json.loads(result.stdout)
+        return bool(data and data[0].get("State", {}).get("Running"))
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, IndexError):
+        return False
+
+
+def _remove_container(name: str) -> None:
+    """Remove a stopped container by name. Logs failures for diagnostics."""
+    try:
+        result = subprocess.run(
+            ["docker", "rm", "-f", name],
+            capture_output=True,
+            text=True,
+            timeout=_DOCKER_TIMEOUT,
+        )
+        if result.returncode != 0:
+            logging.warning(
+                "docker rm -f failed for %s: %s", name, result.stderr.strip()
+            )
+    except subprocess.TimeoutExpired:
+        logging.error("docker rm -f timed out for %s after %ds", name, _DOCKER_TIMEOUT)
 
 
 def _start_container() -> str:
@@ -62,12 +97,8 @@ def _start_container() -> str:
         if _is_running(name):
             logging.debug(f"Reusing persistent container: {name}")
             return name
-        # Remove stopped leftover with the same name (ignore errors)
-        subprocess.run(
-            ["docker", "rm", "-f", name],
-            capture_output=True,
-            text=True,
-        )
+        # Remove stopped leftover with the same name
+        _remove_container(name)
     else:
         name = f"seclab-shell-{uuid.uuid4().hex[:8]}"
 
