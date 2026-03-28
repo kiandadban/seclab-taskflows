@@ -5,11 +5,14 @@ seclab-taskflow-agent:
   version: "1.0"
   filetype: model_config
 models:
-   code_analysis: gpt-5.2
+#1. Deep technical reasoning over code
+#2. General tasks like writing descriptions, triaging issues
+#3. Filter and decide what actually matters
+   code_analysis: gpt-4o #previously gpt-5.2
    general_tasks: gpt-4o
    triage: claude-sonnet-4
 model_settings:
   code_analysis:
     temperature: 1
-    reasoning:
-      effort: high
+    #reasoning:
+      #effort: high

@@ -189,3 +189,5 @@ logs/
 
 #data
 data/
+
+.env

@@ -5,11 +5,11 @@ seclab-taskflow-agent:
   version: "1.0"
   filetype: model_config
 models:
-   code_analysis: gpt-5.2
+   code_analysis: gpt-4o #previously gpt-5.2
    general_tasks: gpt-4o
    triage: claude-sonnet-4
 model_settings:
   code_analysis:
     temperature: 1
-    reasoning:
-      effort: medium
+    #reasoning:
+      #effort: medium
